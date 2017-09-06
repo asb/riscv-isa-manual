@@ -1,11 +1,65 @@
-\chapter{Hypervisor Extensions, Version 0.0}
+\chapter{Hypervisor Extension, Version 0.0}
 \label{hypervisor}
 
-This chapter is a placeholder for RISC-V hypervisor support with an
-extended S-mode.
+This chapter describes the RISC-V hypervisor extension, which virtualizes
+the supervisor-level architecture to efficiently host guest operating
+systems atop a type-1 or type-2 hypervisor.  The hypervisor extension adds
+a second level of address translation and protection to virtualize the
+memory and memory-mapped I/O subsystems.  The extension also replaces
+S-mode with two new privilege modes: {\em hypervisor mode} (H-mode), where
+the hypervisor runs, and {\em virtual supervisor} mode (VS-mode), where the
+guest runs.  H-mode acts the same as S-mode, but with additional
+instructions and CSRs that support hosting a VS-mode guest.  VS-mode
+appears to act the same as S-mode.  S-mode operating systems can execute
+without modification in either H-mode or VS-mode.
+
+An H-mode OS or hypervisor interacts with the machine through the same SBI
+as would an S-mode OS.  An H-mode hypervisor is expected to implement the
+SBI for a VS-mode guest.
 
 \begin{commentary}
 The privileged architecture is designed to simplify the use of classic
 virtualization techniques, where a guest OS is run at user-level, as
 the few privileged instructions can be easily detected and trapped.
+The hypervisor extension improves virtualization performance by
+reducing the frequency of these traps.
 \end{commentary}
+
+\section{Privilege Modes}
+
+The current {\em virtualization mode}, denoted V, indicates whether
+the hart is currently executing in
+a VS-mode guest or a U-mode program on a VS-mode guest.
+When V=1, the hart is either in VS-mode or in U-mode under a VS-mode OS.
+When V=0, the hart is either in M-mode or H-mode, or in U-mode under an
+H-mode OS.  The virtualization mode also indicates whether two-level
+address translation is active.  Table~\ref{h-operating-modes} lists the
+possible operating modes of a RISC-V hart with the hypervisor extension.
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|c|c||l|l|l|}
+  \hline
+   Privilege & Virtualization & \multirow{2}{*}{Abbreviation} & \multirow{2}{*}{Name} & Two-Level \\
+   Mode      & Mode (V)       &                               &                       & Translation \\ \hline
+   0         & 0              & U-mode  & User mode & Off \\
+   1         & 0              & H-mode  & Hypervisor mode & Off \\
+   3         & 0              & M-mode  & Machine mode & Off \\
+   0         & 1              & U-mode  & User mode & On \\
+   1         & 1              & VS-mode & Virtual-supervisor mode & On \\
+  \hline
+ \end{tabular}
+\end{center}
+\caption{Operating modes with the hypervisor extension.}
+\label{h-operating-modes}
+\end{table*}
+
+\section{Hypervisor CSRs}
+
+An H-mode hypervisor uses the S-mode CSRs to interact with the exception,
+interrupt, and address-translation subsystems, as would an S-mode OS.
+Several additional hypervisor CSRs control the behavior of a VS-mode guest.
+Additionally, several {\em hypervisor-alternate} CSRs are copies of
+a corresponding S-mode CSR, containing VS-mode's view of that CSR.
+When transitioning between virtualization modes (V=0 to V=1, or vice-versa),
+a hypervisor-alternate CSR is swapped with its counterpart.

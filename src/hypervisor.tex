@@ -1,21 +1,21 @@
 \chapter{Hypervisor Extension, Version 0.0}
 \label{hypervisor}
 
-This chapter describes the RISC-V hypervisor extension, which virtualizes
-the supervisor-level architecture to efficiently host guest operating
-systems atop a type-1 or type-2 hypervisor.  The hypervisor extension adds
-a second level of address translation and protection to virtualize the
-memory and memory-mapped I/O subsystems.  The extension also replaces
-S-mode with two new privilege modes: {\em hypervisor mode} (H-mode), where
-the hypervisor runs, and {\em virtual supervisor} mode (VS-mode), where the
-guest runs.  H-mode acts the same as S-mode, but with additional
-instructions and CSRs that support hosting a VS-mode guest.  VS-mode
-appears to act the same as S-mode.  S-mode operating systems can execute
-without modification in either H-mode or VS-mode.
+This chapter describes the RISC-V hypervisor extension, which virtualizes the
+supervisor-level architecture to efficiently host guest operating systems atop
+a type-1 or type-2 hypervisor.  The hypervisor extension adds a second level
+of address translation, from supervisor-physical addresses to
+hypervisor-physical addresses, to virtualize the memory and memory-mapped I/O
+subsystems.  The hypervisor extension also adds a new privilege mode, {\em
+hypervisor mode} (H-mode), where the hypervisor runs.  H-mode acts the same as
+S-mode, but with additional instructions and CSRs that control second-level
+address translation and support hosting an S-mode guest.  Existing S-mode
+operating systems can execute without modification either in H-mode or as
+S-mode guests.
 
 An H-mode OS or hypervisor interacts with the machine through the same SBI
 as would an S-mode OS.  An H-mode hypervisor is expected to implement the
-SBI for a VS-mode guest.
+SBI for its S-mode guest.
 
 \begin{commentary}
 The privileged architecture is designed to simplify the use of classic
@@ -25,16 +25,20 @@ The hypervisor extension improves virtualization performance by
 reducing the frequency of these traps.
 \end{commentary}
 
+The hypervisor extensions are enabled by setting bit 7 in the {\tt misa} CSR,
+which corresponds to the letter H.  When {\tt misa}[7] is clear, the hart
+behaves as though this extension were not implemented, and attempts to use
+hypervisor CSRs or instructions raise an illegal instruction exception.
+
 \section{Privilege Modes}
 
-The current {\em virtualization mode}, denoted V, indicates whether
-the hart is currently executing in
-a VS-mode guest or a U-mode program on a VS-mode guest.
-When V=1, the hart is either in VS-mode or in U-mode under a VS-mode OS.
-When V=0, the hart is either in M-mode or H-mode, or in U-mode under an
-H-mode OS.  The virtualization mode also indicates whether two-level
-address translation is active.  Table~\ref{h-operating-modes} lists the
-possible operating modes of a RISC-V hart with the hypervisor extension.
+The current {\em virtualization mode}, denoted V, indicates whether the hart
+is currently executing in a guest.  When V=1, the hart is either in S-mode, or
+in U-mode under an S-mode OS.  When V=0, the hart is either in M-mode, in
+H-mode, or in U-mode under an H-mode OS.  The virtualization mode also
+indicates whether two-level address translation is active (V=1) or inactive
+(V=0).  Table~\ref{h-operating-modes} lists the possible operating modes of
+a RISC-V hart with the hypervisor extension.
 
 \begin{table*}[h!]
 \begin{center}
@@ -42,11 +46,11 @@ possible operating modes of a RISC-V hart with the hypervisor extension.
   \hline
    Privilege & Virtualization & \multirow{2}{*}{Abbreviation} & \multirow{2}{*}{Name} & Two-Level \\
    Mode      & Mode (V)       &                               &                       & Translation \\ \hline
-   0         & 0              & U-mode  & User mode & Off \\
-   1         & 0              & H-mode  & Hypervisor mode & Off \\
-   3         & 0              & M-mode  & Machine mode & Off \\
-   0         & 1              & U-mode  & User mode & On \\
-   1         & 1              & VS-mode & Virtual-supervisor mode & On \\
+   U         & 0              & U-mode  & User mode & Off \\
+   S         & 0              & H-mode  & Hypervisor mode & Off \\
+   M         & 0              & M-mode  & Machine mode & Off \\
+   U         & 1              & U-mode  & User mode & On \\
+   S         & 1              & S-mode  & Supervisor mode & On \\
   \hline
  \end{tabular}
 \end{center}
@@ -57,21 +61,19 @@ possible operating modes of a RISC-V hart with the hypervisor extension.
 \section{Hypervisor CSRs}
 
 An H-mode hypervisor uses the S-mode CSRs to interact with the exception,
-interrupt, and address-translation subsystems, as would an S-mode OS.
+interrupt, and address-translation subsystems.
 Additional H-mode CSRs---{\tt hstval}, {\tt hsstatus}, {\tt hsedeleg}, and
-{\tt hsideleg}--control the behavior of a VS-mode guest.
+{\tt hsideleg}---control the behavior of an S-mode guest.
 
-Additionally, several {\em alternate-supervisor} CSRs, accessible to H-mode,
-are copies of a corresponding supervisor CSR.  When transitioning between
-virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
-alternate-supervisor CSRs with their supervisor counterparts.  When V=0, the
-alternate-supervisor CSRs contain VS-mode's verison of those CSRs, and the
-supervisor CSRs contain H-mode's version.  When V=1, the alternate-supervisor
-CSRs contain H-mode's version, and the supervisor CSRs contain VS-mode's
-version.
-
-
-
+Additionally, several {\em background} supervisor CSRs are copies of one of
+the existing {\em foreground} supervisor CSRs.  For example, the {\tt bsstatus}
+CSR is the background copy of the foreground {\tt sstatus} CSR.  When
+transitioning between virtualization modes (V=0 to V=1, or vice-versa), the
+implementation swaps the background supervisor CSRs with their foreground
+counterparts.  When V=0, the background supervisor CSRs contain the S-mode
+guest's verison of those CSRs, and the supervisor CSRs contain H-mode's
+version.  When V=1, the background supervisor CSRs contain H-mode's version,
+and the foreground supervisor CSRs contain the S-mode guest's version.
 
 %Kill aedeleg, acounteren, medelegv
 %
@@ -85,3 +87,129 @@ version.
 %
 %Describe different VM use cases:
 %TVM/TSRET-style
+
+\section{Machine CSRs}
+
+The hypervisor extension adds two fields to the machine-mode {\tt mstatus} CSR
+and modifies the behavior of some of the existing fields.
+Figure~\ref{hypervisor-mstatus} shows the {\tt mstatus} register when the
+hypervisor extension is provided.
+
+\begin{figure*}[h!]
+{\footnotesize
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{cYccYccccccc}
+\\
+\instbit{XLEN-1} &
+\instbitrange{XLEN-2}{36} &
+\instbitrange{35}{34} &
+\instbitrange{33}{32} &
+\instbitrange{31}{23} &
+\instbit{22} &
+\instbit{21} &
+\instbit{20} &
+\instbit{19} &
+\instbit{18} &
+\instbit{17} &
+ \\
+\hline
+\multicolumn{1}{|c|}{SD} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{SXL[1:0]} &
+\multicolumn{1}{c|}{UXL[1:0]} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{TSR} &
+\multicolumn{1}{c|}{TW} &
+\multicolumn{1}{c|}{TVM} &
+\multicolumn{1}{c|}{MXR} &
+\multicolumn{1}{c|}{SUM} &
+\multicolumn{1}{c|}{MPRV} &
+ \\
+\hline
+1 & XLEN-37 & 2 & 2 & 9 & 1 & 1 & 1 & 1 & 1 & 1 & \\
+\end{tabular}
+\begin{tabular}{ccccccccccccccc}
+\\
+&
+\instbitrange{16}{15} &
+\instbitrange{14}{13} &
+\instbitrange{12}{11} &
+\instbit{10} &
+\instbit{9} &
+\instbit{8} &
+\instbit{7} &
+\instbit{6} &
+\instbit{5} &
+\instbit{4} &
+\instbit{3} &
+\instbit{2} &
+\instbit{1} &
+\instbit{0} \\
+\hline
+ &
+\multicolumn{1}{|c|}{XS[1:0]} &
+\multicolumn{1}{c|}{FS[1:0]} &
+\multicolumn{1}{c|}{MPP[1:0]} &
+\multicolumn{1}{c|}{MPV} &
+\multicolumn{1}{c|}{MTL} &
+\multicolumn{1}{c|}{SPP} &
+\multicolumn{1}{c|}{MPIE} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{SPIE} &
+\multicolumn{1}{c|}{UPIE} &
+\multicolumn{1}{c|}{MIE} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{SIE} &
+\multicolumn{1}{c|}{UIE} \\
+\hline
+ & 2 & 2 & 2 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 1 \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Machine-mode status register ({\tt mstatus}) for RV64 and RV128.}
+\label{hypervisor-mstatus}
+\end{figure*}
+
+The MPV bit (Machine Previous Virtualization Mode) is written by the implementation
+whenever a trap is taken into M-mode.  Just as the MPP bit is set to the privilege
+mode at the time of the trap, the MPV bit is set to the value of the virtualization
+mode V at the time of the trap.  When an MRET instruction is executed, the
+virtualization mode V is set to MPV.
+
+The MTL bit (Machine Translation Level), which indicates which address-translation level
+caused a page-fault exception, is also written by the implementation whenever a trap
+is taken into M-mode.  On an access fault, or on a page-fault due to H-mode address
+translation, MTL is set to 0.  For any other trap into M-mode, MTL is set to the value
+of V at the time of the trap.
+
+The SXL field controls the value of XLEN for H-mode.
+The UXL field controls the value of XLEN for S-mode when V=1, or for U-mode when V=0.
+
+The TSR and TVM fields only affect execution in H-mode.
+
+The TW field affect execution in both H-mode and S-mode.
+
+The hypervisor extension changes the behavior of the the Modify Privilege
+field, MPRV.  When MPRV=0, translation and protection behave as normal.  When
+MPRV=1, loads and stores are translated and protected as though the current
+privilege mode were set to MPP and the current virtualization mode were set to
+MPV.  Table~\ref{h-mprv} enumerates the cases.
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|c|c|c||p{5in}|}
+  \hline
+   MPRV & MPP & MPV & Effect \\ \hline \hline
+   0    & --  & -- & M-level access with no translation. \\ \hline
+   1    & M   & -- & M-level access with no translation. \\ \hline
+   1    & U   & 0  & U-level access with H-level translation and protection only. \\ \hline
+   1    & S   & 0  & H-level access with H-level translation and protection only.  {\tt hsstatus}.SPRV can modify effective privilege (see Table~\ref{h-sprv}). \\ \hline
+   1    & U   & 1  & U-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. \\ \hline
+   1    & S   & 1  & S-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. {\tt bsstatus}.SUM applies instead of {\tt sstatus}.SUM. \\ \hline
+ \end{tabular}
+\end{center}
+\caption{Effect on load and store translation and protection under MPRV.}
+\label{h-mprv}
+\end{table*}

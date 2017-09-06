@@ -58,8 +58,30 @@ possible operating modes of a RISC-V hart with the hypervisor extension.
 
 An H-mode hypervisor uses the S-mode CSRs to interact with the exception,
 interrupt, and address-translation subsystems, as would an S-mode OS.
-Several additional hypervisor CSRs control the behavior of a VS-mode guest.
-Additionally, several {\em hypervisor-alternate} CSRs are copies of
-a corresponding S-mode CSR, containing VS-mode's view of that CSR.
-When transitioning between virtualization modes (V=0 to V=1, or vice-versa),
-a hypervisor-alternate CSR is swapped with its counterpart.
+Additional H-mode CSRs---{\tt hstval}, {\tt hsstatus}, {\tt hsedeleg}, and
+{\tt hsideleg}--control the behavior of a VS-mode guest.
+
+Additionally, several {\em alternate-supervisor} CSRs, accessible to H-mode,
+are copies of a corresponding supervisor CSR.  When transitioning between
+virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
+alternate-supervisor CSRs with their supervisor counterparts.  When V=0, the
+alternate-supervisor CSRs contain VS-mode's verison of those CSRs, and the
+supervisor CSRs contain H-mode's version.  When V=1, the alternate-supervisor
+CSRs contain H-mode's version, and the supervisor CSRs contain VS-mode's
+version.
+
+
+
+
+%Kill aedeleg, acounteren, medelegv
+%
+%ECALL-from-VS = cause 10
+%
+%call it Hypervisor Extensions
+%
+%a* regs? “as” alternate super
+%stvalv = hstvalv?
+%vm* = “hs” h-extended supervisor
+%
+%Describe different VM use cases:
+%TVM/TSRET-style

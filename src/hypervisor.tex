@@ -62,7 +62,7 @@ a RISC-V hart with the hypervisor extension.
 
 An H-mode hypervisor uses the S-mode CSRs to interact with the exception,
 interrupt, and address-translation subsystems.
-Additional H-mode CSRs---{\tt hstval}, {\tt hsstatus}, {\tt hsedeleg}, and
+Additional H-mode CSRs---{\tt hvtval}, {\tt hsstatus}, {\tt hsedeleg}, and
 {\tt hsideleg}---control the behavior of an S-mode guest.
 
 Additionally, several {\em background} supervisor CSRs are copies of one of
@@ -88,7 +88,37 @@ and the foreground supervisor CSRs contain the S-mode guest's version.
 %Describe different VM use cases:
 %TVM/TSRET-style
 
-\section{Machine CSRs}
+\section{Machine-Level CSRs}
+
+The hypervisor extension adds one new machine-level CSR, {\tt mvtval}, and
+augments the {\tt mstatus} CSR.
+
+\subsection{Machine Virtual Trap Value ({\tt mvtval}) Register}
+
+The {\tt mvtval} register is an XLEN-bit read-write register formatted as shown
+in Figure~\ref{mvtvalreg}.  When an access fault, page fault, or misaligned
+address exception is taken into M-mode, {\tt mvtval} is
+written with the original virtual address that caused the exception.
+For other traps into M-mode, {\tt mvtval} is written with zero.
+
+\begin{figure}[h!]
+{\footnotesize
+\begin{center}
+\begin{tabular}{@{}J}
+\instbitrange{XLEN-1}{0} \\
+\hline
+\multicolumn{1}{|c|}{\tt mvtval} \\
+\hline
+XLEN \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Machine Virtual Trap Value register.}
+\label{mvtvalreg}
+\end{figure}
+
+\subsection{Machine Status Register ({\tt mstatus})}
 
 The hypervisor extension adds two fields to the machine-mode {\tt mstatus} CSR
 and modifies the behavior of some of the existing fields.

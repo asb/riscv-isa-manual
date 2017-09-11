@@ -158,36 +158,30 @@ H-mode's version of the {\tt sip} register.  When transitioning between
 virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
 contents of {\tt bsip} and {\tt sip}.
 
-The UEIP, UTIP, and USIP fields of {\tt bsip} share the storage with those fields in {\tt sip}---writing them through {\tt bsip} is equivalent to writing them through {\tt sip}.
-
 \note{AW: Need to describe how {\tt bsip}.SEIP interacts with PLIC.  I think {\tt bsip}.SEIP should purely be a read-write storage bit to emulate the PLIC for S-mode; the PLIC should not be wired into {\tt bsip}.SEIP.}
 
 \begin{figure*}[h!]
 {\footnotesize
 \begin{center}
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{EccFccFcc}
+\begin{tabular}{TcFcFcc}
 \instbitrange{XLEN-1}{10} &
 \instbit{9} &
-\instbit{8} &
-\instbitrange{7}{6} &
+\instbitrange{8}{6} &
 \instbit{5} &
-\instbit{4} &
-\instbitrange{3}{2} &
+\instbitrange{4}{2} &
 \instbit{1} &
 \instbit{0} \\
 \hline
 \multicolumn{1}{|c|}{\wiri} &
 \multicolumn{1}{c|}{SEIP} &
-\multicolumn{1}{c|}{UEIP} &
 \multicolumn{1}{c|}{\wiri} &
 \multicolumn{1}{c|}{STIP} &
-\multicolumn{1}{c|}{UTIP} &
 \multicolumn{1}{c|}{\wiri} &
 \multicolumn{1}{c|}{SSIP} &
-\multicolumn{1}{c|}{USIP} \\
+\multicolumn{1}{c|}{\wiri} \\
 \hline
-XLEN-10 & 1 & 1 & 2 & 1 & 1 & 2 & 1 & 1 \\
+XLEN-10 & 1 & 3 & 1 & 3 & 1 & 1 \\
 \end{tabular}
 \end{center}
 }
@@ -203,34 +197,28 @@ H-mode's version of the {\tt sie} register.  When transitioning between
 virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
 contents of {\tt bsie} and {\tt sie}.
 
-The UEIE, UTIE, and USIE fields of {\tt bsie} share the storage with those fields in {\tt sie}---writing them through {\tt bsie} is equivalent to writing them through {\tt sie}.
-
 \begin{figure*}[h!]
 {\footnotesize
 \begin{center}
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{EccFccFcc}
+\begin{tabular}{TcFcFcc}
 \instbitrange{XLEN-1}{10} &
 \instbit{9} &
-\instbit{8} &
-\instbitrange{7}{6} &
+\instbitrange{8}{6} &
 \instbit{5} &
-\instbit{4} &
-\instbitrange{3}{2} &
+\instbitrange{4}{2} &
 \instbit{1} &
 \instbit{0} \\
 \hline
 \multicolumn{1}{|c|}{\wpri} &
 \multicolumn{1}{c|}{SEIE} &
-\multicolumn{1}{c|}{UEIE} &
 \multicolumn{1}{c|}{\wpri} &
 \multicolumn{1}{c|}{STIE} &
-\multicolumn{1}{c|}{UTIE} &
 \multicolumn{1}{c|}{\wpri} &
 \multicolumn{1}{c|}{SSIE} &
-\multicolumn{1}{c|}{USIE} \\
+\multicolumn{1}{c|}{\wiri} \\
 \hline
-XLEN-10 & 1 & 1 & 2 & 1 & 1 & 2 & 1 & 1 \\
+XLEN-10 & 1 & 3 & 1 & 3 & 1 & 1 \\
 \end{tabular}
 \end{center}
 }
@@ -243,6 +231,14 @@ When V=0, {\tt bsip} and {\tt bsie} do not affect the behavior of the machine.
 When V=1, they hold the active interrupt-pending and interrupt-enable bits,
 respectively, for H-mode; if any bit position holds a 1 in both registers, an
 interrupt will be taken.
+
+\begin{commentary}
+The {\tt bsip} and {\tt bsie} CSRs do not hold copies of the user-mode
+interrupt fields.  The expectation is that the context-switch code
+will swap the {\tt uip} and {\tt uie} CSRs
+along with the other user-mode interrupt
+registers ({\tt ustatus}, {\tt utvec}, etc.) if that feature is enabled.
+\end{commentary}
 
 \subsection{Background Supervisor Trap Vector Base Address Register ({\tt bstvec})}
 

@@ -17,6 +17,15 @@ An H-mode OS or hypervisor interacts with the machine through the same SBI
 as would an S-mode OS.  An H-mode hypervisor is expected to implement the
 SBI for its S-mode guest.
 
+The hypervisor extensions are enabled by setting bit 7 in the {\tt misa} CSR,
+which corresponds to the letter H.  When {\tt misa}[7] is clear, the hart
+behaves as though this extension were not implemented, and attempts to use
+hypervisor CSRs or instructions raise an illegal instruction exception.
+
+\begin{commentary}
+This draft is based on earlier proposals by John Hauser and Paolo Bonzini.
+\end{commentary}
+
 \begin{commentary}
 The baseline privileged architecture is designed to simplify the use of classic
 virtualization techniques, where a guest OS is run at user-level, as
@@ -31,11 +40,6 @@ and to maintain shadow page tables.  The majority of CSR accesses for
 type-2 hypervisors are valid S-mode accesses so need not be trapped.
 Hypervisors can support nested virtualization analogously.
 \end{commentary}
-
-The hypervisor extensions are enabled by setting bit 7 in the {\tt misa} CSR,
-which corresponds to the letter H.  When {\tt misa}[7] is clear, the hart
-behaves as though this extension were not implemented, and attempts to use
-hypervisor CSRs or instructions raise an illegal instruction exception.
 
 \section{Privilege Modes}
 

@@ -78,6 +78,173 @@ H-mode's version.  When V=1, the background supervisor CSRs contain H-mode's
 version, and the foreground supervisor CSRs contain the S-mode guest's
 version.  The background registers are accessible to H-mode, but not to S-mode.
 
+\subsection{Hypervisor Virtual Trap Value ({\tt hvtval}) Register}
+
+The {\tt hvtval} register is an XLEN-bit read-write register formatted as shown
+in Figure~\ref{hvtvalreg}.  When an access fault, page fault, or misaligned
+address exception is taken into H-mode, {\tt hvtval} is
+written with the original virtual address that caused the exception.
+For other traps into H-mode, {\tt hvtval} is written with zero.
+
+\begin{figure}[h!]
+{\footnotesize
+\begin{center}
+\begin{tabular}{@{}J}
+\instbitrange{XLEN-1}{0} \\
+\hline
+\multicolumn{1}{|c|}{\tt hvtval} \\
+\hline
+XLEN \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Hypervisor virtual trap value register ({\tt hvtval}).}
+\label{hvtvalreg}
+\end{figure}
+
+\subsection{Hypervisor Status ({\tt hstatus}) Register}
+
+The {\tt hstatus} register is an XLEN-bit read/write register
+formatted as shown in Figure~\ref{hstatusreg}.  The {\tt hstatus}
+register provides facilities analogous to the {\tt mstatus} register
+that track and control the exception behavior of an S-mode guest.
+
+\begin{figure*}[h!]
+{\footnotesize
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{EcccWcYccR}
+\\
+\instbitrange{XLEN-1}{23} &
+\instbit{22} &
+\instbit{21} &
+\instbit{20} &
+\instbitrange{19}{18} &
+\instbit{17} &
+\instbitrange{16}{11} &
+\instbit{10} &
+\instbit{9} &
+\instbitrange{8}{0} \\
+\hline
+\multicolumn{1}{|c|}{\wpri} &
+\multicolumn{1}{c|}{TSR} &
+\multicolumn{1}{c|}{TW} &
+\multicolumn{1}{c|}{TVM} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{SPRV} &
+\multicolumn{1}{c|}{\wpri} &
+\multicolumn{1}{c|}{SPV} &
+\multicolumn{1}{c|}{STL} &
+\multicolumn{1}{c|}{\wpri} \\
+\hline
+XLEN-23 & 1 & 1 & 1 & 2 & 1 & 6 & 1 & 1 & 9 \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Hypervisor-mode status register ({\tt hstatus}).}
+\label{hstatusreg}
+\end{figure*}
+
+The {\tt hstatus} fields TSR, TW, and TVM are defined analogously to the
+homonymous fields in {\tt mstatus}, but affect the trapping behavior of the
+SRET, WFI, and virtual-memory management instructions in the S-mode guest
+only.
+
+The SPV bit (Supervisor Previous Virtualization Mode) is written by the implementation
+whenever a trap is taken into H-mode.  Just as the SPP bit in {\tt sstatus} is set to the privilege
+mode at the time of the trap, the SPV bit in {\tt hstatus} is set to the value of the virtualization
+mode V at the time of the trap.  When an SRET instruction is executed when V=0,
+V is set to SPV.
+
+The STL bit (Supervisor Translation Level), which indicates which address-translation level
+caused a page-fault exception, is also written by the implementation whenever a trap
+is taken into H-mode.  On an access fault, or on a page-fault due to H-mode address
+translation, STL is set to 0.  For any other trap into H-mode, STL is set to the value
+of V at the time of the trap.
+
+The SPRV bit modifies the privilege with which loads and stores execute.
+When SPRV=0, translation and protection behave as normal.  When SPRV=1,
+load and store memory addresses are translated and protected as though
+the current privilege mode were set to {\tt sstatus}.SPP and the current
+virtualization mode were set to {\tt hstatus}.SPV.
+Table~\ref{h-sprv} enumerates the cases.
+
+\begin{commentary}
+For simplicity, SPRV is in effect even when in S-mode or U-mode, but in normal
+use will only be enabled for short sequences in H-mode.
+\end{commentary}
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|c|c|c||p{5in}|}
+  \hline
+   SPRV & SPP & SPV & Effect \\ \hline \hline
+   0    & --  & -- & Normal access; current privilege and virtualization modes apply. \\ \hline
+   1    & 0   & 0  & U-level access with H-level translation and protection only. \\ \hline
+   1    & 1   & 0  & H-level access with H-level translation and protection only. \\ \hline
+   1    & 0   & 1  & U-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. \\ \hline
+   1    & 1   & 1  & S-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. {\tt bsstatus}.SUM applies instead of {\tt sstatus}.SUM. \\ \hline
+ \end{tabular}
+\end{center}
+\caption{Effect on load and store translation and protection under SPRV.}
+\label{h-sprv}
+\end{table*}
+
+\subsection{Hypervisor Trap Delegation Registers ({\tt hedeleg} and {\tt hideleg})}
+
+By default, all traps at any privilege level are handled in M-mode, though
+M-mode usually uses the {\tt medeleg} and {\tt mideleg} CSRs to delegate
+some traps to H-mode.  The {\tt hedeleg} and {\tt hideleg} CSRs allow these
+traps to be further delegated to an S-mode guest; their layout is the same
+as {\tt medeleg} and {\tt mideleg}.
+
+\begin{figure}[h!]
+{\footnotesize
+\begin{center}
+\begin{tabular}{@{}U}
+\instbitrange{XLEN-1}{0} \\
+\hline
+\multicolumn{1}{|c|}{Synchronous Exceptions (\warl)} \\
+\hline
+XLEN \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Hypervisor Exception Delegation Register {\tt hedeleg}.}
+\label{hedelegreg}
+\end{figure}
+
+\begin{figure}[h!]
+{\footnotesize
+\begin{center}
+\begin{tabular}{@{}U}
+\instbitrange{XLEN-1}{0} \\
+\hline
+\multicolumn{1}{|c|}{Interrupts (\warl)} \\
+\hline
+XLEN \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{Hypervisor Interrupt Delegation Register {\tt hideleg}.}
+\label{hidelegreg}
+\end{figure}
+
+The {\tt hedeleg} and {\tt hideleg} registers are only active when V=1.  When
+V=1, any trap that has been delegated to H-mode (using {\tt medeleg} or {\tt
+mideleg}) is further delegated to S-mode if the corresponding {\tt hedeleg} or
+{\tt hideleg} bit is set.  If the N extension for user-mode interrupts
+is implemented, the S-mode guest may further delegate the interrupt
+to U-mode by setting the corresponding bit in {\tt sedeleg} or {\tt sideleg}.
+
+When V=0 and the N extension for user-mode interrupts is implemented, any trap
+that has been delegated to H-mode can be further delegated to U-mode by
+setting the corresponding bit in {\tt sedeleg} or {\tt sideleg}.
+
 \subsection{Background Supervisor Status ({\tt bsstatus}) Register}
 
 The {\tt sstatus} register is an XLEN-bit read/write register formatted as
@@ -89,7 +256,7 @@ virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps
 these fields in {\tt bsstatus} with their counterparts in {\tt sstatus}.  The
 other fields in {\tt sstatus} are unchanged.
 
-When V=0, {\tt bsstatus} does not affect the behavior of the machine,
+When V=0, {\tt bsstatus} does not directly affect the behavior of the machine,
 unless the MPRV feature in the {\tt mstatus} register or the SPRV feature
 in the {\tt hstatus} register is used to execute a load or store
 {\em as though} V=1.
@@ -249,7 +416,7 @@ holds H-mode's version of the {\tt stvec} register.  When transitioning between
 virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
 contents of {\tt bstvec} and {\tt stvec}.
 
-When V=0, {\tt bstvec} does not affect the behavior of the machine.  When V=1,
+When V=0, {\tt bstvec} does not directly affect the behavior of the machine.  When V=1,
 it controls the value to which the {\tt pc} will be set upon a trap into
 H-mode.
 
@@ -299,7 +466,7 @@ XLEN \\
 \end{center}
 }
 \vspace{-0.1in}
-\caption{Background Supervisor Scratch Register ({\tt bsscratch}).}
+\caption{Background supervisor scratch register ({\tt bsscratch}).}
 \label{bsscratchreg}
 \end{figure*}
 
@@ -331,7 +498,7 @@ XLEN \\
 \end{center}
 }
 \vspace{-0.1in}
-\caption{Background Supervisor Exception Program Counter ({\tt bsepc}).}
+\caption{Background supervisor exception program counter ({\tt bsepc}).}
 \label{bsepcreg}
 \end{figure*}
 
@@ -365,7 +532,7 @@ values that {\tt scause} can hold.
 \end{center}
 }
 \vspace{-0.1in}
-\caption{Background Supervisor Cause Register ({\tt bscause}).}
+\caption{Background supervisor cause register ({\tt bscause}).}
 \label{bscausereg}
 \end{figure*}
 
@@ -397,8 +564,44 @@ XLEN \\
 \end{center}
 }
 \vspace{-0.1in}
-\caption{Background Supervisor Trap Value Register ({\tt bstval}).}
+\caption{Background supervisor trap value register ({\tt bstval}).}
 \label{bstvalreg}
+\end{figure*}
+
+\subsection{Background Address Translation and Protection Register ({\tt bsatp})}
+
+The {\tt bsatp} register is an XLEN-bit read/write register formatted as shown
+in Figure~\ref{bsatpreg}.  When V=0, the {\tt bsatp} register holds the
+S-mode guest's version of the {\tt satp} register.  When V=1, {\tt bsatp}
+holds H-mode's version of the {\tt satp} register.  When transitioning between
+virtualization modes (V=0 to V=1, or vice-versa), the implementation swaps the
+contents of {\tt bsatp} and {\tt satp}.
+
+When V=0, {\tt bsatp} does not directly affect the behavior of the machine.  When V=1,
+it controls the translation of supervisor-physical addresses to
+hypervisor-phsyical addresses.  The interpretation of the MODE, ASID, and PPN
+fields is the same as for {\tt satp}.
+
+\begin{figure*}[h!]
+{\footnotesize
+\begin{center}
+\begin{tabular}{@{}S@{}T@{}U}
+\instbitrange{63}{60} &
+\instbitrange{59}{44} &
+\instbitrange{43}{0} \\
+\hline
+\multicolumn{1}{|c|}{{\tt MODE} (\warl)} &
+\multicolumn{1}{|c|}{{\tt ASID} (\warl)} &
+\multicolumn{1}{|c|}{{\tt PPN}  (\warl)} \\
+\hline
+4 & 16 & 44 \\
+\end{tabular}
+\end{center}
+}
+\vspace{-0.1in}
+\caption{RV64 background supervisor address translation and protection register {\tt satp}, for MODE
+values Sv39 and Sv48.}
+\label{bsatpreg}
 \end{figure*}
 
 \section{Exceptions}
@@ -456,6 +659,19 @@ without the hypervisor extension.
 \label{hcauses}
 \end{table*}
 
+\section{Hypervisor Instructions}
+
+The hypervisor extension adds one new instruction, HRET, which is valid only in
+H-mode or M-mode, and when {\tt mstatus}.TSR=0.  HRET sets {\tt hstatus}.SPV=1,
+then performs an SRET.
+
+\begin{commentary}
+As compared to setting {\tt hstatus}.SPV then executing SRET, HRET halves the
+number of emulation traps when executing an H-mode hypervisor on an
+implementation without hypervisor extensions, or when recursively
+virtualizing.
+\end{commentary}
+
 \section{Machine-Level CSRs}
 
 The hypervisor extension adds one new machine-level CSR, {\tt mvtval}, and
@@ -482,7 +698,7 @@ XLEN \\
 \end{center}
 }
 \vspace{-0.1in}
-\caption{Machine Virtual Trap Value register.}
+\caption{Machine Virtual Trap Value register ({\tt mvtval}).}
 \label{mvtvalreg}
 \end{figure}
 
@@ -600,14 +816,14 @@ MPV.  Table~\ref{h-mprv} enumerates the cases.
 \begin{tabular}{|c|c|c||p{5in}|}
   \hline
    MPRV & MPP & MPV & Effect \\ \hline \hline
-   0    & --  & -- & M-level access with no translation. \\ \hline
+   0    & --  & -- & Normal access; current privilege and virtualization modes apply. \\ \hline
    1    & M   & -- & M-level access with no translation. \\ \hline
    1    & U   & 0  & U-level access with H-level translation and protection only. \\ \hline
-   1    & S   & 0  & H-level access with H-level translation and protection only.  {\tt hstatus}.SPRV can modify effective privilege (see Table~\ref{h-sprv}). \\ \hline
+   1    & S   & 0  & H-level access with H-level translation and protection only.  \\ \hline
    1    & U   & 1  & U-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. \\ \hline
    1    & S   & 1  & S-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. {\tt bsstatus}.SUM applies instead of {\tt sstatus}.SUM. \\ \hline
  \end{tabular}
 \end{center}
-\caption{Effect on load and store translation and protection under MPRV.}
+\caption{Effect on load and store translation and protection under MPRV.  When MPRV=1, MPP$\neq$M, and {\tt hstatus}.SPRV=1, the effective privilege is furhter modified: {\tt sstatus}.SPP applies instead of MPP, and {\tt hstatus}.SPV applies instead of MPV.}
 \label{h-mprv}
 \end{table*}

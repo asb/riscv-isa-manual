@@ -18,11 +18,18 @@ as would an S-mode OS.  An H-mode hypervisor is expected to implement the
 SBI for its S-mode guest.
 
 \begin{commentary}
-The privileged architecture is designed to simplify the use of classic
+The baseline privileged architecture is designed to simplify the use of classic
 virtualization techniques, where a guest OS is run at user-level, as
 the few privileged instructions can be easily detected and trapped.
 The hypervisor extension improves virtualization performance by
 reducing the frequency of these traps.
+
+The hypervisor extension has been designed to be efficiently
+emulable on platforms that do not implement the extension, by running
+the hypervisor in S-mode and trapping into M-mode for H-mode CSR accesses
+and to maintain shadow page tables.  The majority of CSR accesses for
+type-2 hypervisors are valid S-mode accesses so need not be trapped.
+Hypervisors can support nested virtualization analogously.
 \end{commentary}
 
 The hypervisor extensions are enabled by setting bit 7 in the {\tt misa} CSR,
@@ -45,12 +52,12 @@ a RISC-V hart with the hypervisor extension.
 \begin{tabular}{|c|c||l|l|l|}
   \hline
    Privilege & Virtualization & \multirow{2}{*}{Abbreviation} & \multirow{2}{*}{Name} & Two-Level \\
-   Mode      & Mode (V)       &                               &                       & Translation \\ \hline
-   U         & 0              & U-mode  & User mode & Off \\
-   S         & 0              & H-mode  & Hypervisor mode & Off \\
-   M         & 0              & M-mode  & Machine mode & Off \\
-   U         & 1              & U-mode  & User mode & On \\
-   S         & 1              & S-mode  & Supervisor mode & On \\
+   Encoding  & Mode (V)       &                               &                       & Translation \\ \hline
+   0         & 0              & U-mode  & User mode & Off \\
+   1         & 0              & H-mode  & Hypervisor mode & Off \\
+   3         & 0              & M-mode  & Machine mode & Off \\
+   0         & 1              & U-mode  & User mode & On \\
+   1         & 1              & S-mode  & Supervisor mode & On \\
   \hline
  \end{tabular}
 \end{center}
@@ -604,7 +611,7 @@ values Sv39 and Sv48.}
 \label{bsatpreg}
 \end{figure*}
 
-\section{Exceptions}
+\section{Traps}
 
 The hypervisor extension modifies the environment-call exception cause
 encoding.  Environment calls from H-mode use cause 9, whereas environment
@@ -613,10 +620,10 @@ possible M-mode and H-mode exception codes when the hypervisor extension is
 present.
 
 \begin{commentary}
-Without the hypervisor extension, cause 9 is used for S-mode environment
-calls.  Using cause 9 for H-mode environment calls when the hypervisor
-extension is enabled allows the same M-mode software to work with or
-without the hypervisor extension.
+H-mode and S-mode ECALLs use different cause values so they can be delegated
+separately.  Without the hypervisor extension, cause 9 is used for S-mode
+environment calls.  Using cause 9 for H-mode environment calls when the
+hypervisor extension is enabled simplifies M-mode software.
 \end{commentary}
 
 \begin{table*}[h!]
@@ -659,6 +666,103 @@ without the hypervisor extension.
 \label{hcauses}
 \end{table*}
 
+When a trap occurs in H-mode, or in U-mode with V=0, it goes to M-mode, unless
+delegated by {\tt medeleg} or {\tt mideleg}, in which case it goes to H-mode.
+If the N extension for user-mode interrupts is implemented, then U-mode (V=0)
+traps destined for H-mode may be further delegated to U-mode using the {\tt
+sedeleg} and {\tt sideleg} CSRs.
+
+When a trap occurs in S-mode, or in U-mode with V=1, it goes to M-mode, unless
+delegated by {\tt medeleg} or {\tt mideleg}, in which case it goes to H-mode,
+unless further delegated by {\tt hedeleg} or {\tt hideleg}, in which case it
+goes to S-mode.  If the N extension for user-mode interrupts is implemented,
+then U-mode traps destined for S-mode may be further delegated to U-mode
+using the {\tt sedeleg} and {\tt sideleg} CSRs.
+
+When a trap is taken into M-mode, then if the virtualization mode V was 1, the
+contents of the background supervisor registers are first
+swapped with their foreground counterparts.  Then, {\tt mstatus}.MPP and {\tt
+mstatus}.MPV are set according to Table~\ref{h-mpp}.
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|l|c|c|}
+  \hline
+  Previous Mode & MPP & MPV \\ \hline
+  U-mode, V=1   & 0   & 1 \\
+  U-mode, V=0   & 0   & 0 \\
+  S-mode        & 1   & 1 \\
+  H-mode        & 1   & 0 \\
+  M-mode        & 3   & 0 \\ \hline
+\end{tabular}
+\end{center}
+\caption{Value of {\tt mstatus} fields MPP and MPV after a trap into M-mode.
+Upon trap return, MPV is ignored when MPP=3.}
+\label{h-mpp}
+\end{table*}
+
+When a trap is taken into H-mode, then if the virtualization mode V was 1, the
+contents of the background supervisor registers are first
+swapped with their foreground counterparts.  Then, {\tt sstatus}.SPP and {\tt
+sstatus}.SPV are set according to Table~\ref{h-spp}.
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|l|c|c|}
+  \hline
+  Previous Mode & SPP & SPV \\ \hline
+  U-mode, V=1   & 0   & 1 \\
+  U-mode, V=0   & 0   & 0 \\
+  S-mode        & 1   & 1 \\
+  H-mode        & 1   & 0 \\ \hline
+\end{tabular}
+\end{center}
+\caption{Value of {\tt sstatus} fields SPP and SPV after a trap into H-mode.}
+\label{h-spp}
+\end{table*}
+
+When a trap is taken into S-mode, {\tt sstatus}.SPP is set according to
+Table~\ref{h-vspp}.  The {\tt sstatus}.SPV
+bit is not modified, and the current virtualization state V remains 1.
+
+\begin{table*}[h!]
+\begin{center}
+\begin{tabular}{|l|c|c|}
+  \hline
+  Previous Mode & SPP \\ \hline
+  U-mode, V=1   & 0   \\
+  S-mode        & 1   \\ \hline
+\end{tabular}
+\end{center}
+\caption{Value of {\tt sstatus} field SPP after a trap into S-mode.}
+\label{h-vspp}
+\end{table*}
+
+\section{Trap Return}
+
+The MRET instruction is used to return from a trap into M-mode.  MRET sets the
+privilege mode according to the values in {\tt mstatus}.MPP and {\tt
+mstatus}.MPV, as encoded in Table~\ref{h-mpp}.  MRET then sets {\tt pc}={\tt
+mepc}, then in {\tt mstatus} sets MPP=0, MPIE=MIE, then MPIE=1.  Finally, if
+MRET changed the current virtualization state V, the contents of the
+background supervisor registers are swapped with their foreground
+counterparts.
+
+The SRET instruction is usually used to return from a trap into H-mode or
+S-mode.  Its behavior depends on the current virtualization mode.  When
+executed in M-mode or H-mode (i.e., V=0), SRET sets the privilege mode
+according to the values in {\tt sstatus}.SPP and {\tt sstatus}.SPV, as encoded
+in Table~\ref{h-spp}.  When executed in S-mode (i.e., V=1), SRET sets the
+privilege mode according to Table~\ref{h-vspp}.  In either case, SRET then
+sets {\tt pc}={\tt sepc}, then in {\tt sstatus} sets SPP=0, SPIE=SIE, then
+SPIE=1.  Finally, if SRET changed the current virtualization state V, the
+contents of the background supervisor registers are swapped with their
+foreground counterparts.
+
+The HRET instruction can be used to return from H-mode into a virtualized
+guest.  It first sets {\tt sstatus.SPV}=1, then performs the same actions as
+SRET.
+
 \section{Hypervisor Instructions}
 
 The hypervisor extension adds one new instruction, HRET, which is valid only in
@@ -669,7 +773,9 @@ then performs an SRET.
 As compared to setting {\tt hstatus}.SPV then executing SRET, HRET halves the
 number of emulation traps when executing an H-mode hypervisor on an
 implementation without hypervisor extensions, or when recursively
-virtualizing.
+virtualizing.  The need to set {\tt hstatus}.SPV before executing SRET arises
+when the hypervisor takes an interrupt while servicing a trap from a guest,
+because the nested interrupt clears {\tt hstatus}.SPV.
 \end{commentary}
 
 \section{Machine-Level CSRs}

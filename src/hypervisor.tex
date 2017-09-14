@@ -783,7 +783,7 @@ MPV.  Table~\ref{h-mprv} enumerates the cases.
    1    & 1   & 1  & S-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. {\tt bsstatus}.SUM applies instead of {\tt sstatus}.SUM. \\ \hline
  \end{tabular}
 \end{center}
-\caption{Effect on load and store translation and protection under MPRV.  When MPRV=1, MPP$\neq$M, and {\tt hstatus}.SPRV=1, the effective privilege is furhter modified: {\tt sstatus}.SPP applies instead of MPP, and {\tt hstatus}.SPV applies instead of MPV.}
+\caption{Effect on load and store translation and protection under MPRV.  When MPRV=1, MPP$\neq$3, and {\tt hstatus}.SPRV=1, the effective privilege is furhter modified: {\tt sstatus}.SPP applies instead of MPP, and {\tt hstatus}.SPV applies instead of MPV.}
 \label{h-mprv}
 \end{table*}
 
@@ -827,6 +827,33 @@ For the purposes of H-level address translation protection, memory accesses
 made with V=0 are considered supervisor-level accesses.  For example, for an
 H-mode virtual memory access to succeed, the corresponding H-level page-table
 entry must not have its U bit set, unless overridden by {\tt sstatus}.SUM.
+
+\subsection{Memory-Management Fences}
+
+The behavior of the SFENCE.VMA instruction is affected by the current
+virtualization mode V.  When V=0, the virtual-address argument is an H-level
+virtual address, and the ASID argument is an H-level ASID.  If either argument
+is provided, the instruction orders stores only to H-level address-translation
+structures with subsequent address translations.  If neither argument is
+provided, the instruction orders stores to all H-level and S-level address-translation structures
+with subsequent address translations.
+
+When V=1, the virtual-address argument to SFENCE.VMA is a supervisor virtual
+address, and the ASID argument is an S-level ASID.  The instruction
+orders stores only to the S-level address-translation structures within the
+H-level address-space specified by the {\tt bsatp} register.
+
+SFENCE.VMA is affected by the MPRV and SPRV mechanisms in the {\tt mstatus}
+and {\tt hstatus} registers.  When MPRV=1, SFENCE.VMA acts as though the
+current privilege and virtualization modes were given by MPP and MPV.  When
+the effective privilege mode is less than M and SPRV=1, SFENCE.VMA acts as
+though the current virtualization mode were given by SPV.
+
+When V=0, attempts to execute SFENCE.VMA in U-mode or when {\tt mstatus}.TSR=1
+raise an illegal instruction exception.  When V=1, attempts to execute
+SFENCE.VMA in U-mode or when {\tt hstatus}.VTSR=1 raise an illegal instruction
+exception.  The exception behavior of SFENCE.VMA is {\em not} affected by the
+MPRV and SPRV mechanisms.
 
 \section{Base ISA Control}
 

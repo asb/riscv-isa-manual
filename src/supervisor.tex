@@ -418,7 +418,7 @@ The UEIP field in {\tt sip} contains a single read-write bit.  UEIP
 may be written by S-mode software to indicate to U-mode that an
 external interrupt is pending.  Additionally, the platform-level
 interrupt controller may generate user-level external interrupts.  The
-logical-OR of the software-writeable bit and the signal from the
+logical-OR of the software-writable bit and the signal from the
 external interrupt controller are used to generate external interrupts
 for user mode.  When the UEIP bit is read with a CSRRW, CSRRS, or
 CSRRC instruction, the value returned in the {\tt rd} destination

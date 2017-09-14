@@ -783,7 +783,7 @@ MPV.  Table~\ref{h-mprv} enumerates the cases.
    1    & 1   & 1  & S-level access with two-level translation and protection. {\tt sstatus}.MXR makes any executable page readable.  {\tt bsstatus}.MXR makes readable those pages marked executable at the S-mode translation level only if readable at the H-mode translation level. {\tt bsstatus}.SUM applies instead of {\tt sstatus}.SUM. \\ \hline
  \end{tabular}
 \end{center}
-\caption{Effect on load and store translation and protection under MPRV.  When MPRV=1, MPP$\neq$3, and {\tt hstatus}.SPRV=1, the effective privilege is furhter modified: {\tt sstatus}.SPP applies instead of MPP, and {\tt hstatus}.SPV applies instead of MPV.}
+\caption{Effect on load and store translation and protection under MPRV.  When MPRV=1, MPP$\neq$3, and {\tt hstatus}.SPRV=1, the effective privilege is further modified: {\tt sstatus}.SPP applies instead of MPP, and {\tt hstatus}.SPV applies instead of MPV.}
 \label{h-mprv}
 \end{table*}
 
@@ -795,7 +795,7 @@ mstatus}, and vice-versa.
 
 Whenever the current virtualization mode V is 1, two-level address translation
 and protection is in effect.  For any virtual memory access, the original {\em
-user virutal address} or {\em supervisor virtual address} is first converted
+user virtual address} or {\em supervisor virtual address} is first converted
 by S-level address translation, as controlled by the {\tt satp} register, into
 a {\em supervisor physical address}.  The supervisor physical address is then
 converted by H-level address translation, as controlled by the {\tt bsatp}

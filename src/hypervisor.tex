@@ -843,17 +843,10 @@ address, and the ASID argument is an S-level ASID.  The instruction
 orders stores only to the S-level address-translation structures within the
 H-level address-space specified by the {\tt bsatp} register.
 
-SFENCE.VMA is affected by the MPRV and SPRV mechanisms in the {\tt mstatus}
-and {\tt hstatus} registers.  When MPRV=1, SFENCE.VMA acts as though the
-current privilege and virtualization modes were given by MPP and MPV.  When
-the effective privilege mode is less than M and SPRV=1, SFENCE.VMA acts as
-though the current virtualization mode were given by SPV.
-
 When V=0, attempts to execute SFENCE.VMA in U-mode or when {\tt mstatus}.TSR=1
 raise an illegal instruction exception.  When V=1, attempts to execute
 SFENCE.VMA in U-mode or when {\tt hstatus}.VTSR=1 raise an illegal instruction
-exception.  The exception behavior of SFENCE.VMA is {\em not} affected by the
-MPRV and SPRV mechanisms.
+exception.
 
 \section{Base ISA Control}
 

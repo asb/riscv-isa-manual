@@ -618,7 +618,7 @@ values Sv39 and Sv48.}
 \section{Hypervisor Instructions}
 
 The hypervisor extension adds one new instruction, HRET, which is valid only in
-H-mode or M-mode, and when {\tt mstatus}.TSR=0.  HRET sets {\tt hstatus}.SPV=1,
+M-mode or in H-mode when {\tt mstatus}.TSR=0.  HRET sets {\tt hstatus}.SPV=1,
 then performs an SRET.
 
 \begin{commentary}
@@ -958,7 +958,7 @@ Upon trap return, MPV is ignored when MPP=3.}
 When a trap is taken into H-mode, then if the virtualization mode V was 1, the
 contents of the background supervisor registers are first
 swapped with their foreground counterparts.  Then, {\tt sstatus}.SPP and {\tt
-sstatus}.SPV are set according to Table~\ref{h-spp}.
+hstatus}.SPV are set according to Table~\ref{h-spp}.
 
 \begin{table*}[h!]
 \begin{center}
@@ -971,12 +971,12 @@ sstatus}.SPV are set according to Table~\ref{h-spp}.
   H-mode        & 1   & 0 \\ \hline
 \end{tabular}
 \end{center}
-\caption{Value of {\tt sstatus} fields SPP and SPV after a trap into H-mode.}
+\caption{Value of {\tt sstatus} field SPP and {\tt hstatus} field SPV after a trap into H-mode.}
 \label{h-spp}
 \end{table*}
 
 When a trap is taken into S-mode, {\tt sstatus}.SPP is set according to
-Table~\ref{h-vspp}.  The {\tt sstatus}.SPV
+Table~\ref{h-vspp}.  The {\tt hstatus}.SPV
 bit is not modified, and the current virtualization state V remains 1.
 
 \begin{table*}[h!]
@@ -997,7 +997,7 @@ bit is not modified, and the current virtualization state V remains 1.
 The MRET instruction is used to return from a trap into M-mode.  MRET sets the
 privilege mode according to the values in {\tt mstatus}.MPP and {\tt
 mstatus}.MPV, as encoded in Table~\ref{h-mpp}.  MRET then sets {\tt pc}={\tt
-mepc}, then in {\tt mstatus} sets MPP=0, MPIE=MIE, then MPIE=1.  Finally, if
+mepc}, then in {\tt mstatus} sets MPP=0, MIE=MPIE, then MPIE=1.  Finally, if
 MRET changed the current virtualization state V, the contents of the
 background supervisor registers are swapped with their foreground
 counterparts.
@@ -1005,10 +1005,10 @@ counterparts.
 The SRET instruction is usually used to return from a trap into H-mode or
 S-mode.  Its behavior depends on the current virtualization mode.  When
 executed in M-mode or H-mode (i.e., V=0), SRET sets the privilege mode
-according to the values in {\tt sstatus}.SPP and {\tt sstatus}.SPV, as encoded
+according to the values in {\tt sstatus}.SPP and {\tt hstatus}.SPV, as encoded
 in Table~\ref{h-spp}.  When executed in S-mode (i.e., V=1), SRET sets the
 privilege mode according to Table~\ref{h-vspp}.  In either case, SRET then
-sets {\tt pc}={\tt sepc}, then in {\tt sstatus} sets SPP=0, SPIE=SIE, then
+sets {\tt pc}={\tt sepc}, then in {\tt sstatus} sets SPP=0, SIE=SPIE, then
 SPIE=1.  Finally, if SRET changed the current virtualization state V, the
 contents of the background supervisor registers are swapped with their
 foreground counterparts.
